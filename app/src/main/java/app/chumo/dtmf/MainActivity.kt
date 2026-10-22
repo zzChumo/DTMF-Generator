@@ -98,8 +98,11 @@ import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
 
+    // 拨号键盘的低延迟音频引擎：预创建 AudioTrack + 专用线程持续喂数据
+    @Volatile private var activeKey: Char? = null
+    @Volatile private var engineRunning = false
     private var toneTrack: AudioTrack? = null
-    private var toneJob: Job? = null
+    private var feederThread: Thread? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,6 +123,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        // 启动时就建好音频引擎，按下按键时只剩一个标志位切换
+        ensureAudioEngine()
+    }
+
+    override fun onDestroy() {
+        releaseAudioEngine()
+        super.onDestroy()
     }
 
     /** 播放一段 DTMF 音频 */
@@ -188,54 +198,107 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 拨号键盘：按住开始持续播放该按键的双音 */
-    private fun startTone(key: Char) {
-        stopTone()
-        val freq = Dtmf.frequencyOf(key) ?: return
+    // ================= 低延迟音频引擎 =================
+
+    /**
+     * 预创建一条低延迟 AudioTrack（PERFORMANCE_MODE_LOW_LATENCY），
+     * 由高优先级线程持续喂入 256 帧（≈5.8ms）的小块数据：
+     * 空闲时写静音、按下时立刻改写成对应双音 —— 按下到出声只有约一个 block 的延迟。
+     */
+    private fun ensureAudioEngine() {
+        if (toneTrack != null) return
         val minBuf = AudioTrack.getMinBufferSize(
             Dtmf.SAMPLE_RATE,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        val track = AudioTrack(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build(),
-            AudioFormat.Builder()
-                .setSampleRate(Dtmf.SAMPLE_RATE)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .build(),
-            maxOf(minBuf, 4096),
-            AudioTrack.MODE_STREAM,
-            AudioManager.AUDIO_SESSION_ID_GENERATE
-        )
+        val blockFrames = 256
+        val bufferBytes = maxOf(minBuf, blockFrames * 2 * 2)
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(Dtmf.SAMPLE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .build()
+            )
+            .setBufferSizeInBytes(bufferBytes)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            .build()
         toneTrack = track
         track.play()
-        toneJob = lifecycleScope.launch(Dispatchers.Default) {
-            val buf = ShortArray(1024)
-            var sampleIndex = 0L
-            try {
-                while (isActive) {
-                    for (i in buf.indices) {
-                        val t = (sampleIndex + i).toDouble() / Dtmf.SAMPLE_RATE
-                        val v = 0.5 * (sin(2.0 * PI * freq.first * t) + sin(2.0 * PI * freq.second * t))
-                        buf[i] = (v * Short.MAX_VALUE).toInt().toShort()
+        engineRunning = true
+        feederThread = Thread {
+            val toneBlock = ShortArray(blockFrames)
+            val silence = ShortArray(blockFrames)
+            var currentKey: Char? = null
+            var freq: Pair<Int, Int>? = null
+            var phase = 0L
+            while (engineRunning) {
+                val key = activeKey
+                if (key == null) {
+                    currentKey = null
+                    freq = null
+                    phase = 0L
+                    if (!writeBlock(track, silence)) break
+                } else {
+                    if (key != currentKey) {
+                        currentKey = key
+                        freq = Dtmf.frequencyOf(key)
+                        phase = 0L
                     }
-                    sampleIndex += buf.size
-                    track.write(buf, 0, buf.size)
+                    val f = freq
+                    if (f == null) {
+                        if (!writeBlock(track, silence)) break
+                    } else {
+                        for (i in toneBlock.indices) {
+                            val t = (phase + i).toDouble() / Dtmf.SAMPLE_RATE
+                            val v = 0.5 * (sin(2.0 * PI * f.first * t) + sin(2.0 * PI * f.second * t))
+                            toneBlock[i] = (v * Short.MAX_VALUE).toInt().toShort()
+                        }
+                        phase += toneBlock.size
+                        if (!writeBlock(track, toneBlock)) break
+                    }
                 }
-            } catch (_: Exception) {
-                // 停止时 write 可能抛异常，忽略
             }
+        }.apply {
+            name = "dtmf-tone-feeder"
+            priority = Thread.MAX_PRIORITY
+            isDaemon = true
+            start()
         }
     }
 
-    /** 拨号键盘：松手停止 */
+    private fun writeBlock(track: AudioTrack, block: ShortArray): Boolean {
+        return try {
+            track.write(block, 0, block.size) > 0
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** 按下：只切一个 volatile 标志位，下一块数据（≈5.8ms 内）就变成双音 */
+    private fun startTone(key: Char) {
+        ensureAudioEngine()
+        activeKey = key
+    }
+
+    /** 松手：切回静音 */
     private fun stopTone() {
-        toneJob?.cancel()
-        toneJob = null
+        activeKey = null
+    }
+
+    private fun releaseAudioEngine() {
+        engineRunning = false
+        activeKey = null
+        feederThread = null
         toneTrack?.let { t ->
             try {
                 t.pause()
@@ -563,18 +626,27 @@ private fun DialKey(
             },
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             Text(
                 text = key.toString(),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            if (sub.isNotEmpty()) {
-                Text(
-                    text = sub,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // 固定高度的副标签槽位：没有字母的键也占位，保证所有数字处于同一高度
+            Box(
+                modifier = Modifier.height(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (sub.isNotEmpty()) {
+                    Text(
+                        text = sub,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
