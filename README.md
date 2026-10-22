@@ -1,4 +1,13 @@
-# DTMF Generator
+<h1 align="center"> DTMF Generator </h1>
+
+<p align="center">
+  <!-- Kotlin -->
+  <a href="https://kotlinlang.org/" target="_blank"><img src="https://img.shields.io/badge/Kotlin-7f52ff.svg?logo=kotlin&logoColor=white&style=for-the-badge" alt="Kotlin"/></a>
+  <!-- Android -->
+  <a href="https://developer.android.com/" target="_blank"><img src="https://img.shields.io/badge/Android-34a853?logo=android&logoColor=white&style=for-the-badge" alt="Android"/></a>
+  <!-- License -->
+  <a href="https://opensource.org/licenses/MIT" target="_blank"><img src="https://img.shields.io/badge/License-WTFPL-green.svg?style=for-the-badge" alt="WTFPL License"></a>
+</p>
 
 Kotlin + Jetpack Compose (Material 3 / Material You) 的 DTMF 音频生成实现。
 
