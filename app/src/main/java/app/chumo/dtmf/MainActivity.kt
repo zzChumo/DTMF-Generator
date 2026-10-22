@@ -624,8 +624,9 @@ private fun DialKey(
             )
             .pointerInput(key) {
                 detectTapGestures(
-                    onPress = {
-                        val press = PressInteraction.Press(Offset.Zero)
+                    onPress = { pressOffset ->
+                        // 用真实手指落点做涟漪原点，而不是 (0,0)
+                        val press = PressInteraction.Press(pressOffset)
                         interactionSource.emit(press)
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onToneStart(key)
