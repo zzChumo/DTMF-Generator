@@ -17,7 +17,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +51,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.ripple
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -609,17 +612,29 @@ private fun DialKey(
     onToneStop: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .height(78.dp)
             .clip(RoundedCornerShape(percent = 50))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .indication(
+                interactionSource = interactionSource,
+                indication = ripple(color = Color.Gray.copy(alpha = 0.4f))
+            )
             .pointerInput(key) {
                 detectTapGestures(
                     onPress = {
+                        val press = PressInteraction.Press(Offset.Zero)
+                        interactionSource.emit(press)
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onToneStart(key)
-                        tryAwaitRelease()
+                        val released = tryAwaitRelease()
+                        if (released) {
+                            interactionSource.emit(PressInteraction.Release(press))
+                        } else {
+                            interactionSource.emit(PressInteraction.Cancel(press))
+                        }
                         onToneStop()
                     }
                 )
