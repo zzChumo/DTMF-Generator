@@ -13,6 +13,8 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.AlertDialog
@@ -53,10 +56,12 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
@@ -162,6 +167,7 @@ fun DtmfApp(
     onPlay: (String, Int, Int) -> Unit,
     onSave: (String, Int, Int, (String) -> Unit) -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
     var seq by remember { mutableStateOf("") }
     var toneMs by remember { mutableStateOf(100) }
     var toneExpanded by remember { mutableStateOf(false) }
@@ -188,7 +194,11 @@ fun DtmfApp(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
+                .padding(24.dp)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { focusManager.clearFocus() },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             OutlinedTextField(
@@ -198,7 +208,11 @@ fun DtmfApp(
                 },
                 label = { Text("号码（数字、#、*）") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
@@ -222,11 +236,11 @@ fun DtmfApp(
                 ) {
                     DropdownMenuItem(
                         text = { Text("100ms") },
-                        onClick = { toneMs = 100; toneExpanded = false }
+                        onClick = { toneMs = 100; toneExpanded = false; focusManager.clearFocus() }
                     )
                     DropdownMenuItem(
                         text = { Text("200ms") },
-                        onClick = { toneMs = 200; toneExpanded = false }
+                        onClick = { toneMs = 200; toneExpanded = false; focusManager.clearFocus() }
                     )
                 }
             }
@@ -251,21 +265,25 @@ fun DtmfApp(
                 ) {
                     DropdownMenuItem(
                         text = { Text("20ms") },
-                        onClick = { gapMs = 20; gapExpanded = false }
+                        onClick = { gapMs = 20; gapExpanded = false; focusManager.clearFocus() }
                     )
                     DropdownMenuItem(
                         text = { Text("50ms") },
-                        onClick = { gapMs = 50; gapExpanded = false }
+                        onClick = { gapMs = 50; gapExpanded = false; focusManager.clearFocus() }
                     )
                     DropdownMenuItem(
                         text = { Text("100ms") },
-                        onClick = { gapMs = 100; gapExpanded = false }
+                        onClick = { gapMs = 100; gapExpanded = false; focusManager.clearFocus() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("0ms（实验性）") },
+                        onClick = { gapMs = 0; gapExpanded = false; focusManager.clearFocus() }
                     )
                 }
             }
             Spacer(Modifier.height(20.dp))
             Button(
-                onClick = { onPlay(seq, toneMs, gapMs) },
+                onClick = { focusManager.clearFocus(); onPlay(seq, toneMs, gapMs) },
                 enabled = seq.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -274,6 +292,7 @@ fun DtmfApp(
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = {
+                    focusManager.clearFocus()
                     onSave(seq, toneMs, gapMs) { msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     }
