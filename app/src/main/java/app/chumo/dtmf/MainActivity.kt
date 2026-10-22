@@ -11,27 +11,44 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -41,8 +58,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -51,12 +66,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -65,15 +83,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
+
+    private var toneTrack: AudioTrack? = null
+    private var toneJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,7 +114,9 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = scheme) {
                 DtmfApp(
                     onPlay = ::play,
-                    onSave = ::save
+                    onSave = ::save,
+                    onToneStart = ::startTone,
+                    onToneStop = ::stopTone
                 )
             }
         }
@@ -159,15 +187,78 @@ class MainActivity : ComponentActivity() {
             onResult("已保存：" + f.absolutePath)
         }
     }
+
+    /** 拨号键盘：按住开始持续播放该按键的双音 */
+    private fun startTone(key: Char) {
+        stopTone()
+        val freq = Dtmf.frequencyOf(key) ?: return
+        val minBuf = AudioTrack.getMinBufferSize(
+            Dtmf.SAMPLE_RATE,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+        val track = AudioTrack(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build(),
+            AudioFormat.Builder()
+                .setSampleRate(Dtmf.SAMPLE_RATE)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .build(),
+            maxOf(minBuf, 4096),
+            AudioTrack.MODE_STREAM,
+            AudioManager.AUDIO_SESSION_ID_GENERATE
+        )
+        toneTrack = track
+        track.play()
+        toneJob = lifecycleScope.launch(Dispatchers.Default) {
+            val buf = ShortArray(1024)
+            var sampleIndex = 0L
+            try {
+                while (isActive) {
+                    for (i in buf.indices) {
+                        val t = (sampleIndex + i).toDouble() / Dtmf.SAMPLE_RATE
+                        val v = 0.5 * (sin(2.0 * PI * freq.first * t) + sin(2.0 * PI * freq.second * t))
+                        buf[i] = (v * Short.MAX_VALUE).toInt().toShort()
+                    }
+                    sampleIndex += buf.size
+                    track.write(buf, 0, buf.size)
+                }
+            } catch (_: Exception) {
+                // 停止时 write 可能抛异常，忽略
+            }
+        }
+    }
+
+    /** 拨号键盘：松手停止 */
+    private fun stopTone() {
+        toneJob?.cancel()
+        toneJob = null
+        toneTrack?.let { t ->
+            try {
+                t.pause()
+                t.flush()
+                t.stop()
+            } catch (_: Exception) {
+            }
+            t.release()
+        }
+        toneTrack = null
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DtmfApp(
     onPlay: (String, Int, Int) -> Unit,
-    onSave: (String, Int, Int, (String) -> Unit) -> Unit
+    onSave: (String, Int, Int, (String) -> Unit) -> Unit,
+    onToneStart: (Char) -> Unit,
+    onToneStop: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
+    var selectedTab by remember { mutableStateOf(0) }
     var seq by remember { mutableStateOf("") }
     var toneMs by remember { mutableStateOf(100) }
     var toneExpanded by remember { mutableStateOf(false) }
@@ -188,127 +279,54 @@ fun DtmfApp(
                 }
             )
         },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { focusManager.clearFocus(); selectedTab = 0 },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "主页") },
+                    label = { Text("主页") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { focusManager.clearFocus(); selectedTab = 1 },
+                    icon = { DialpadIcon() },
+                    label = { Text("拨号键盘") }
+                )
+            }
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp)
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { focusManager.clearFocus() },
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            OutlinedTextField(
-                value = seq,
-                onValueChange = { input ->
+        if (selectedTab == 0) {
+            HomePage(
+                padding = padding,
+                seq = seq,
+                onSeqChange = { input ->
                     seq = input.filter { c -> c.isDigit() || c == '#' || c == '*' }
                 },
-                label = { Text("号码（数字、#、*）") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(12.dp))
-            ExposedDropdownMenuBox(
-                expanded = toneExpanded,
-                onExpandedChange = { toneExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = "${toneMs}ms",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("音频时长") },
-                    trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = toneExpanded)
-                    },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                ExposedDropdownMenu(
-                    expanded = toneExpanded,
-                    onDismissRequest = { toneExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("100ms") },
-                        onClick = { toneMs = 100; toneExpanded = false; focusManager.clearFocus() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("200ms") },
-                        onClick = { toneMs = 200; toneExpanded = false; focusManager.clearFocus() }
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            ExposedDropdownMenuBox(
-                expanded = gapExpanded,
-                onExpandedChange = { gapExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = "${gapMs}ms",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("音频间隔") },
-                    trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = gapExpanded)
-                    },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                ExposedDropdownMenu(
-                    expanded = gapExpanded,
-                    onDismissRequest = { gapExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("20ms") },
-                        onClick = { gapMs = 20; gapExpanded = false; focusManager.clearFocus() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("50ms") },
-                        onClick = { gapMs = 50; gapExpanded = false; focusManager.clearFocus() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("100ms") },
-                        onClick = { gapMs = 100; gapExpanded = false; focusManager.clearFocus() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("0ms（实验性）") },
-                        onClick = { gapMs = 0; gapExpanded = false; focusManager.clearFocus() }
-                    )
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = { focusManager.clearFocus(); onPlay(seq, toneMs, gapMs) },
-                enabled = seq.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("播放DTMF")
-            }
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = {
+                toneMs = toneMs,
+                toneExpanded = toneExpanded,
+                onToneExpandedChange = { toneExpanded = it },
+                onToneSelected = { toneMs = it; toneExpanded = false },
+                gapMs = gapMs,
+                gapExpanded = gapExpanded,
+                onGapExpandedChange = { gapExpanded = it },
+                onGapSelected = { gapMs = it; gapExpanded = false },
+                onPlay = { focusManager.clearFocus(); onPlay(seq, toneMs, gapMs) },
+                onSave = {
                     focusManager.clearFocus()
                     onSave(seq, toneMs, gapMs) { msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     }
                 },
-                enabled = seq.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("保存")
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "由DeepSeek辅助完成",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                focusManager = focusManager
             )
-            Spacer(Modifier.height(8.dp))
+        } else {
+            DialpadPage(
+                padding = padding,
+                onToneStart = onToneStart,
+                onToneStop = onToneStop
+            )
         }
     }
 
@@ -339,6 +357,250 @@ fun DtmfApp(
                     Text("关闭")
                 }
             }
+        )
+    }
+}
+
+/** 主页：输入框 + 两个 Select + 两个按钮 + 底部小字 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomePage(
+    padding: PaddingValues,
+    seq: String,
+    onSeqChange: (String) -> Unit,
+    toneMs: Int,
+    toneExpanded: Boolean,
+    onToneExpandedChange: (Boolean) -> Unit,
+    onToneSelected: (Int) -> Unit,
+    gapMs: Int,
+    gapExpanded: Boolean,
+    onGapExpandedChange: (Boolean) -> Unit,
+    onGapSelected: (Int) -> Unit,
+    onPlay: () -> Unit,
+    onSave: () -> Unit,
+    focusManager: androidx.compose.ui.focus.FocusManager
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .padding(24.dp)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { focusManager.clearFocus() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        OutlinedTextField(
+            value = seq,
+            onValueChange = onSeqChange,
+            label = { Text("号码（数字、#、*）") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Phone,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        ExposedDropdownMenuBox(
+            expanded = toneExpanded,
+            onExpandedChange = onToneExpandedChange
+        ) {
+            OutlinedTextField(
+                value = "${toneMs}ms",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("音频时长") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = toneExpanded)
+                },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = toneExpanded,
+                onDismissRequest = { onToneExpandedChange(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("100ms") },
+                    onClick = { onToneSelected(100); focusManager.clearFocus() }
+                )
+                DropdownMenuItem(
+                    text = { Text("200ms") },
+                    onClick = { onToneSelected(200); focusManager.clearFocus() }
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        ExposedDropdownMenuBox(
+            expanded = gapExpanded,
+            onExpandedChange = onGapExpandedChange
+        ) {
+            OutlinedTextField(
+                value = "${gapMs}ms",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("音频间隔") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = gapExpanded)
+                },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = gapExpanded,
+                onDismissRequest = { onGapExpandedChange(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("20ms") },
+                    onClick = { onGapSelected(20); focusManager.clearFocus() }
+                )
+                DropdownMenuItem(
+                    text = { Text("50ms") },
+                    onClick = { onGapSelected(50); focusManager.clearFocus() }
+                )
+                DropdownMenuItem(
+                    text = { Text("100ms") },
+                    onClick = { onGapSelected(100); focusManager.clearFocus() }
+                )
+                DropdownMenuItem(
+                    text = { Text("0ms（实验性）") },
+                    onClick = { onGapSelected(0); focusManager.clearFocus() }
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = onPlay,
+            enabled = seq.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("播放DTMF")
+        }
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onSave,
+            enabled = seq.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("保存")
+        }
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = "由DeepSeek辅助完成",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** 拨号键盘页面（胶囊按键 + 字母副标签） */
+@Composable
+private fun DialpadPage(
+    padding: PaddingValues,
+    onToneStart: (Char) -> Unit,
+    onToneStop: () -> Unit
+) {
+    val rows = listOf(
+        listOf('1' to "", '2' to "ABC", '3' to "DEF"),
+        listOf('4' to "GHI", '5' to "JKL", '6' to "MNO"),
+        listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
+        listOf('*' to "", '0' to "+", '#' to "")
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        rows.forEachIndexed { index, row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                row.forEach { (key, sub) ->
+                    DialKey(
+                        key = key,
+                        sub = sub,
+                        modifier = Modifier.weight(1f),
+                        onToneStart = onToneStart,
+                        onToneStop = onToneStop
+                    )
+                }
+            }
+            if (index != rows.lastIndex) Spacer(Modifier.height(14.dp))
+        }
+    }
+}
+
+/** 单个拨号键：胶囊形；按住持续发声，松手停止 */
+@Composable
+private fun DialKey(
+    key: Char,
+    sub: String,
+    modifier: Modifier = Modifier,
+    onToneStart: (Char) -> Unit,
+    onToneStop: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    Box(
+        modifier = modifier
+            .height(78.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .pointerInput(key) {
+                detectTapGestures(
+                    onPress = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToneStart(key)
+                        tryAwaitRelease()
+                        onToneStop()
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = key.toString(),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (sub.isNotEmpty()) {
+                Text(
+                    text = sub,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/** 拨号盘图标：3x3 圆点 + 底部中间一个圆点 */
+@Composable
+private fun DialpadIcon() {
+    val color = LocalContentColor.current
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val radius = size.minDimension * 0.075f
+        val xStep = size.width / 4f
+        val yStep = size.height / 5f
+        for (row in 0 until 3) {
+            for (col in 0 until 3) {
+                drawCircle(
+                    color = color,
+                    radius = radius,
+                    center = Offset(xStep * (col + 1), yStep * (row + 1))
+                )
+            }
+        }
+        drawCircle(
+            color = color,
+            radius = radius,
+            center = Offset(xStep * 2, yStep * 4)
         )
     }
 }

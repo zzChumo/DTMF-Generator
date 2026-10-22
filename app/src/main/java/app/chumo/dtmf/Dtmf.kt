@@ -20,6 +20,9 @@ object Dtmf {
         '*' to (941 to 1209), '0' to (941 to 1336), '#' to (941 to 1477)
     )
 
+    /** 查询某个按键的双频（低频, 高频），不支持则返回 null */
+    fun frequencyOf(key: Char): Pair<Int, Int>? = FREQ[key]
+
     /** 生成整个序列的 PCM 采样（小端 16bit）。toneMs 音长（默认 100ms），gapMs 间隔（默认 20ms） */
     fun generate(seq: String, toneMs: Int = TONE_MS, gapMs: Int = GAP_MS): ShortArray {
         val toneSamples = SAMPLE_RATE * toneMs / 1000
