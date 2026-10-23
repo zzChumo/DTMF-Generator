@@ -162,7 +162,7 @@ private fun startHoldTone(key: Char) {
 }
 
 // ================= 主题 =================
-private val LightScheme = lightColorScheme(
+internal val LightScheme = lightColorScheme(
     primary = Color(0xFF4F6D8C),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD3E0F0),
@@ -177,7 +177,7 @@ private val LightScheme = lightColorScheme(
     onBackground = Color(0xFF1F2329),
 )
 
-private val DarkScheme = darkColorScheme(
+internal val DarkScheme = darkColorScheme(
     primary = Color(0xFF9DBBD8),
     onPrimary = Color(0xFF0B1F33),
     primaryContainer = Color(0xFF33475B),
@@ -226,8 +226,8 @@ private fun IconDialpad(modifier: Modifier = Modifier, tint: Color = LocalConten
 // ================= 界面 =================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DtmfApp() {
-    var page by remember { mutableStateOf(0) }
+internal fun DtmfApp(initialPage: Int = 0) {
+    var page by remember { mutableStateOf(initialPage) }
     var number by remember { mutableStateOf("") }
     var toneMs by remember { mutableStateOf(100) }
     var gapMs by remember { mutableStateOf(20) }
