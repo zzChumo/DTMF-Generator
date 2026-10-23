@@ -11,7 +11,7 @@
 
 Kotlin + Jetpack Compose (Material 3 / Material You) 的 DTMF 音频生成实现。
 
-![pnBHNzq.jpg](https://s41.ax1x.com/2026/10/22/pnBHNzq.jpg)
+![pnDpnrd.png](https://s41.ax1x.com/2026/10/23/pnDpnrd.png)
 
 ## 构建
 
