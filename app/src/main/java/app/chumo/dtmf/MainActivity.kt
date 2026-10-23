@@ -418,9 +418,15 @@ fun DtmfApp(
         }
         AlertDialog(
             onDismissRequest = { showAbout = false },
+            title = {
+                Text(
+                    text = "关于",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
             text = { Text(aboutText) },
             confirmButton = {
-                TextButton(onClick = { showAbout = false }) {
+                FilledTonalButton(onClick = { showAbout = false }) {
                     Text("关闭")
                 }
             }
