@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "app.chumo"
-version = "0.3-Release"
+version = "1.0-Alpha"
 
 repositories {
     google()

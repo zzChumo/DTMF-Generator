@@ -32,6 +32,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -582,7 +583,7 @@ private fun DialKey(
 
 fun main(args: Array<String>) {
     if (args.contains("--version")) {
-        println("DTMF Generator 0.3-Release (33) - Linux amd64 (Compose Multiplatform + Material3)")
+        println("DTMF Generator 1.0-Alpha (100) - Linux amd64 (Compose Multiplatform + Material3)")
         return
     }
     if (args.contains("--help")) {
@@ -595,9 +596,11 @@ fun main(args: Array<String>) {
 
 private fun runApp() = application {
     val dark = isSystemInDarkTheme()
+    val appIcon = painterResource("icon.png")
     Window(
         onCloseRequest = ::exitApplication,
         title = "DTMF Generator",
+        icon = appIcon,
         state = rememberWindowState(width = 480.dp, height = 820.dp)
     ) {
         MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme) {
