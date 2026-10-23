@@ -45,6 +45,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -446,6 +447,11 @@ private fun HomePage(
     onSave: () -> Unit,
     focusManager: androidx.compose.ui.focus.FocusManager
 ) {
+    var showCustomToneDialog by remember { mutableStateOf(false) }
+    var showCustomGapDialog by remember { mutableStateOf(false) }
+    var customToneText by remember { mutableStateOf("") }
+    var customGapText by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -496,6 +502,15 @@ private fun HomePage(
                     text = { Text("200ms") },
                     onClick = { onToneSelected(200); focusManager.clearFocus() }
                 )
+                DropdownMenuItem(
+                    text = { Text("自定义") },
+                    onClick = {
+                        customToneText = toneMs.toString()
+                        onToneExpandedChange(false)
+                        focusManager.clearFocus()
+                        showCustomToneDialog = true
+                    }
+                )
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -533,6 +548,15 @@ private fun HomePage(
                     text = { Text("0ms（实验性）") },
                     onClick = { onGapSelected(0); focusManager.clearFocus() }
                 )
+                DropdownMenuItem(
+                    text = { Text("自定义") },
+                    onClick = {
+                        customGapText = gapMs.toString()
+                        onGapExpandedChange(false)
+                        focusManager.clearFocus()
+                        showCustomGapDialog = true
+                    }
+                )
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -558,6 +582,76 @@ private fun HomePage(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(8.dp))
+    }
+
+    // —— 自定义时长 Dialog ——
+    if (showCustomToneDialog) {
+        val customTone = customToneText.toIntOrNull()
+        AlertDialog(
+            onDismissRequest = { showCustomToneDialog = false },
+            text = {
+                OutlinedTextField(
+                    value = customToneText,
+                    onValueChange = { input ->
+                        customToneText = input.filter { c -> c.isDigit() }.take(5)
+                    },
+                    label = { Text("自定义时长") },
+                    suffix = { Text("ms") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                FilledTonalButton(
+                    onClick = {
+                        customTone?.let { onToneSelected(it) }
+                        showCustomToneDialog = false
+                    },
+                    enabled = customTone != null && customTone in 1..10000
+                ) {
+                    Text("应用")
+                }
+            }
+        )
+    }
+
+    // —— 自定义间隔 Dialog ——
+    if (showCustomGapDialog) {
+        val customGap = customGapText.toIntOrNull()
+        AlertDialog(
+            onDismissRequest = { showCustomGapDialog = false },
+            text = {
+                OutlinedTextField(
+                    value = customGapText,
+                    onValueChange = { input ->
+                        customGapText = input.filter { c -> c.isDigit() }.take(5)
+                    },
+                    label = { Text("自定义间隔") },
+                    suffix = { Text("ms") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                FilledTonalButton(
+                    onClick = {
+                        customGap?.let { onGapSelected(it) }
+                        showCustomGapDialog = false
+                    },
+                    enabled = customGap != null && customGap in 0..10000
+                ) {
+                    Text("应用")
+                }
+            }
+        )
     }
 }
 
