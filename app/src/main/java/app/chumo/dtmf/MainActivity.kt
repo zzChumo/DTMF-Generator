@@ -469,17 +469,10 @@ private fun HomePage(
             ) { focusManager.clearFocus() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "号码",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 6.dp)
-        )
         OutlinedTextField(
             value = seq,
             onValueChange = onSeqChange,
+            label = { Text("号码") },
             placeholder = { Text("数字、*、#") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
