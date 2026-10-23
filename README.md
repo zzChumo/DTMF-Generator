@@ -1,4 +1,14 @@
-# DTMF Generator for Linux amd64
+<h1 align="center">DTMF Generator for Linux amd64</h1>
+
+<p align="center">
+  <!-- Kotlin -->
+  <a href="https://kotlinlang.org/" target="_blank"><img src="https://img.shields.io/badge/Kotlin-7f52ff.svg?logo=kotlin&logoColor=white&style=for-the-badge" alt="Kotlin"/></a>
+  <!-- Android -->
+  <a href="https://kernel.org/" target="_blank"><img alt="Static Badge" src="https://img.shields.io/badge/Linux-66ccff?style=for-the-badge&logo=linux&logoColor=white&labelColor=grey&color=66ccff">
+</a>
+  <!-- License -->
+  <a href="https://opensource.org/licenses/MIT" target="_blank"><img src="https://img.shields.io/badge/License-WTFPL-green.svg?style=for-the-badge" alt="WTFPL License"></a>
+</p>
 
 Compose Multiplatform，与Android版同源。
 
