@@ -472,7 +472,8 @@ private fun HomePage(
         OutlinedTextField(
             value = seq,
             onValueChange = onSeqChange,
-            label = { Text("号码（数字、#、*）") },
+            label = { Text("号码") },
+            placeholder = { Text("数字、*、#") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Phone,
@@ -595,13 +596,18 @@ private fun HomePage(
         val customTone = customToneText.toIntOrNull()
         AlertDialog(
             onDismissRequest = { showCustomToneDialog = false },
+            title = {
+                Text(
+                    text = "自定义时长",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
             text = {
                 OutlinedTextField(
                     value = customToneText,
                     onValueChange = { input ->
                         customToneText = input.filter { c -> c.isDigit() }.take(5)
                     },
-                    label = { Text("自定义时长") },
                     suffix = { Text("ms") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -630,13 +636,18 @@ private fun HomePage(
         val customGap = customGapText.toIntOrNull()
         AlertDialog(
             onDismissRequest = { showCustomGapDialog = false },
+            title = {
+                Text(
+                    text = "自定义间隔",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
             text = {
                 OutlinedTextField(
                     value = customGapText,
                     onValueChange = { input ->
                         customGapText = input.filter { c -> c.isDigit() }.take(5)
                     },
-                    label = { Text("自定义间隔") },
                     suffix = { Text("ms") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
