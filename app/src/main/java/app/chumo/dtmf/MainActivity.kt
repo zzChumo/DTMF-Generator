@@ -20,6 +20,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -544,10 +546,12 @@ private fun HomePage(
     var customToneText by remember { mutableStateOf("") }
     var customGapText by remember { mutableStateOf("") }
 
+    val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
+            .verticalScroll(scrollState)
             .padding(24.dp)
             .clickable(
                 indication = null,
@@ -718,7 +722,7 @@ private fun HomePage(
                 Text("保存配置")
             }
         }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(32.dp))
         Text(
             text = "由DeepSeek辅助完成",
             style = MaterialTheme.typography.bodySmall,
