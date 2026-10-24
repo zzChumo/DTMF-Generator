@@ -371,8 +371,8 @@ internal fun DtmfApp(initialPage: Int = 0) {
                     onPick = { idx -> selectConfig(if (idx == 0) 0 else configs[idx - 1].id) },
                     onDelete = if (selectedConfigId != 0) ({ showDeleteConfigDialog = true }) else null
                 )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
+                Spacer(Modifier.height(16.dp))
+                TextField(
                     value = number,
                     onValueChange = { it.filter { c -> c.isDigit() || c == '#' || c == '*' }.take(63) },
                     label = { Text("号码") },
@@ -380,7 +380,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 SelectField(
                     label = "音频时长",
                     value = "$toneMs ms",
@@ -393,7 +393,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
                         }
                     }
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 SelectField(
                     label = "音频间隔",
                     value = "$gapMs ms",
@@ -560,7 +560,7 @@ private fun ConfigSelectField(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth()) {
-        OutlinedTextField(
+        TextField(
             value = value,
             onValueChange = {},
             readOnly = true,
@@ -601,7 +601,7 @@ private fun SelectField(label: String, value: String, items: List<String>, onPic
     var selected by remember { mutableStateOf(value) }
     LaunchedEffect(value) { selected = value }
     Box(Modifier.fillMaxWidth()) {
-        OutlinedTextField(
+        TextField(
             value = selected,
             onValueChange = {},
             readOnly = true,
@@ -640,7 +640,7 @@ private fun CustomValueDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
         text = {
-            OutlinedTextField(
+            TextField(
                 value = text,
                 onValueChange = {
                     text = it.filter { c -> c.isDigit() }.take(5)
