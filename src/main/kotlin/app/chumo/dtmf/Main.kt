@@ -334,7 +334,8 @@ internal fun DtmfApp(initialPage: Int = 0) {
     ) { padding ->
         if (page == 0) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)
+                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Column(
                     modifier = Modifier
@@ -436,7 +437,9 @@ internal fun DtmfApp(initialPage: Int = 0) {
                 Text(
                     "由DeepSeek辅助完成",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
             }
