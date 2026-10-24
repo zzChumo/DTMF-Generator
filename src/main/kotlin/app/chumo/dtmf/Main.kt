@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -242,6 +244,45 @@ internal fun DtmfApp(initialPage: Int = 0) {
     val rootFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { rootFocus.requestFocus() } }
 
+    // —— 配置（~/DTMF/config.json，与 Android 客户端同构）——
+    var configs by remember { mutableStateOf(emptyList<DtmfConfig>()) }
+    var selectedConfigId by remember { mutableStateOf(0) }
+    var showDeleteConfigDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { configs = ConfigStore.load() }
+
+    fun saveConfig() {
+        val newId = (configs.maxOfOrNull { it.id } ?: 0) + 1
+        val updated = listOf(DtmfConfig(newId, number, toneMs, gapMs)) + configs
+        configs = updated
+        ConfigStore.save(updated)
+        selectedConfigId = newId
+    }
+
+    fun selectConfig(id: Int) {
+        selectedConfigId = id
+        if (id == 0) {
+            number = ""
+            toneMs = 100
+            gapMs = 20
+        } else {
+            configs.firstOrNull { it.id == id }?.let {
+                number = it.number
+                toneMs = it.time
+                gapMs = it.gap
+            }
+        }
+    }
+
+    fun deleteSelectedConfig() {
+        val id = selectedConfigId
+        if (id == 0) return
+        val updated = configs.filterNot { it.id == id }
+        configs = updated
+        ConfigStore.save(updated)
+        selectedConfigId = 0
+        scope.launch { snackbar.showSnackbar("配置已删除") }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -293,9 +334,23 @@ internal fun DtmfApp(initialPage: Int = 0) {
     ) { padding ->
         if (page == 0) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)
             ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                ConfigSelectField(
+                    label = "配置",
+                    value = if (selectedConfigId == 0) "默认" else (configs.firstOrNull { it.id == selectedConfigId }?.label() ?: "默认"),
+                    items = listOf("默认") + configs.map { it.label() },
+                    onPick = { idx -> selectConfig(if (idx == 0) 0 else configs[idx - 1].id) },
+                    onDelete = if (selectedConfigId != 0) ({ showDeleteConfigDialog = true }) else null
+                )
+                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = number,
                     onValueChange = { it.filter { c -> c.isDigit() || c == '#' || c == '*' }.take(63) },
@@ -347,25 +402,37 @@ internal fun DtmfApp(initialPage: Int = 0) {
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) { Text("播放 DTMF") }
                 Spacer(Modifier.height(12.dp))
-                FilledTonalButton(
-                    onClick = {
-                        val pcm = generateSequence(number, toneMs, gapMs)
-                        if (pcm.isEmpty()) {
-                            scope.launch { snackbar.showSnackbar("错误：号码为空") }
-                        } else {
-                            val dir = File(System.getProperty("user.home"), "DTMF")
-                            dir.mkdirs()
-                            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                            val safe = number.replace('#', 'H').replace('*', 'S')
-                            val f = File(dir, "DTMF_${stamp}_$safe.wav")
-                            f.writeBytes(toWav(pcm))
-                            scope.launch { snackbar.showSnackbar("已保存：${f.absolutePath}") }
-                        }
-                    },
-                    enabled = number.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
-                ) { Text("保存") }
-                Spacer(Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                ) {
+                    FilledTonalButton(
+                        onClick = {
+                            val pcm = generateSequence(number, toneMs, gapMs)
+                            if (pcm.isEmpty()) {
+                                scope.launch { snackbar.showSnackbar("错误：号码为空") }
+                            } else {
+                                val dir = File(System.getProperty("user.home"), "DTMF")
+                                dir.mkdirs()
+                                val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                val safe = number.replace('#', 'H').replace('*', 'S')
+                                val f = File(dir, "DTMF_${stamp}_$safe.wav")
+                                f.writeBytes(toWav(pcm))
+                                scope.launch { snackbar.showSnackbar("已保存：${f.absolutePath}") }
+                            }
+                        },
+                        enabled = number.isNotEmpty(),
+                        modifier = Modifier.weight(1f).height(52.dp)
+                    ) { Text("保存音频") }
+                    FilledTonalButton(
+                        onClick = { saveConfig() },
+                        modifier = Modifier.weight(1f).height(52.dp)
+                    ) { Text("保存配置") }
+                }
+                Spacer(Modifier.height(24.dp))
+                }   // 滚动内容结束
+
+                // 底部小字：常驻底部
                 Text(
                     "由DeepSeek辅助完成",
                     style = MaterialTheme.typography.bodySmall,
@@ -382,6 +449,23 @@ internal fun DtmfApp(initialPage: Int = 0) {
         }
     }
 
+    }
+
+    if (showDeleteConfigDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfigDialog = false },
+            title = { Text("删除配置", style = MaterialTheme.typography.headlineSmall) },
+            text = { Text("确定要删除该配置吗？") },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfigDialog = false }) { Text("取消") }
+            },
+            confirmButton = {
+                FilledTonalButton(onClick = {
+                    deleteSelectedConfig()
+                    showDeleteConfigDialog = false
+                }) { Text("删除") }
+            }
+        )
     }
 
     if (showAbout) {
@@ -440,6 +524,50 @@ private fun IconPerson() {
             close()
         }
         drawPath(path, tint)
+    }
+}
+
+@Composable
+private fun ConfigSelectField(
+    label: String,
+    value: String,
+    items: List<String>,
+    onPick: (Int) -> Unit,
+    onDelete: (() -> Unit)?
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { Text("▾", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        // 点击整个输入框打开下拉
+        Box(Modifier.matchParentSize().clickable { expanded = true })
+        // 删除图标：仅非默认配置时出现（覆盖在点击层之上）
+        if (onDelete != null) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 40.dp)
+                    .size(36.dp)
+                    .clickable { onDelete() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✕", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            items.forEachIndexed { idx, item ->
+                DropdownMenuItem(text = { Text(item) }, onClick = {
+                    expanded = false
+                    onPick(idx)
+                })
+            }
+        }
     }
 }
 
@@ -583,7 +711,7 @@ private fun DialKey(
 
 fun main(args: Array<String>) {
     if (args.contains("--version")) {
-        println("DTMF Generator 1.0-Alpha (100) - Linux amd64 (Compose Multiplatform + Material3)")
+        println("DTMF Generator 1.0-Alpha-2 (102) - Linux amd64 (Compose Multiplatform + Material3)")
         return
     }
     if (args.contains("--help")) {
