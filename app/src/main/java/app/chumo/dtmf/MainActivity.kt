@@ -551,14 +551,19 @@ private fun HomePage(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .verticalScroll(scrollState)
             .padding(24.dp)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }
-            ) { focusManager.clearFocus() },
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { focusManager.clearFocus() },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         // —— 配置 Select ——
         val selectedConfig = configs.firstOrNull { it.id == selectedConfigId }
         ExposedDropdownMenuBox(
@@ -722,7 +727,10 @@ private fun HomePage(
                 Text("保存配置")
             }
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
+        }   // 滚动内容结束
+
+        // 底部小字：常驻在列底部，不随内容滚动
         Text(
             text = "由DeepSeek辅助完成",
             style = MaterialTheme.typography.bodySmall,
