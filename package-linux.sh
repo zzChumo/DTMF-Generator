@@ -77,11 +77,28 @@ chmod 644 "$APPS/dtmf-generator.desktop"
 # 终端命令：~/.local/bin/dtmf-generator -> 包内启动脚本
 ln -sf "$DIR/bin/dtmf-generator" "$BIN/dtmf-generator"
 
-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" || true
-command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$ICONS" || true
+# 刷新桌面数据库与图标缓存（不同桌面环境需要的命令不同，能跑就跑）
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" 2>/dev/null || true
+command -v xdg-desktop-menu >/dev/null 2>&1 && xdg-desktop-menu forceupdate 2>/dev/null || true
+command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$ICONS" 2>/dev/null || true
+command -v xdg-icon-resource >/dev/null 2>&1 && xdg-icon-resource forceupdate 2>/dev/null || true
+for db in kbuildsycoca6 kbuildsycoca5 kbuildsycoca; do
+  if command -v "$db" >/dev/null 2>&1; then "$db" --noincremental >/dev/null 2>&1 || true; break; fi
+done
 
 echo "已安装菜单项：$APPS/dtmf-generator.desktop"
 echo "已建立命令：$BIN/dtmf-generator"
+echo "已安装图标：$ICONS/{512x512,256x256,128x128}/apps/dtmf-generator.png"
+
+# 自检：文件是否真的到位
+if [ ! -f "$APPS/dtmf-generator.desktop" ]; then
+  echo "警告：菜单项文件没写成功。" >&2
+elif [ ! -f "$ICONS/256x256/apps/dtmf-generator.png" ]; then
+  echo "警告：图标文件没写成功。" >&2
+else
+  echo "自检：菜单项与图标文件都已就位。"
+  echo "如果应用菜单里仍不显示图标：注销重新登录一次，或重启桌面（KDE: kbuildsycoca6 后再开菜单）。"
+fi
 
 case ":$PATH:" in
   *":$BIN:"*) echo "终端可直接运行：dtmf-generator" ;;
