@@ -551,7 +551,8 @@ private fun HomePage(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(24.dp)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(
             modifier = Modifier
@@ -734,7 +735,9 @@ private fun HomePage(
         Text(
             text = "由DeepSeek辅助完成",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
     }
