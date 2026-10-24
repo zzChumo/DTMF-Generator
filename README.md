@@ -1,4 +1,4 @@
-<p align="center"><img src="https://s41.ax1x.com/2026/10/23/pnDKnsI.png" alt="pnDKnsI.png" border="0" /></p>
+<p align="center"><img src="https://s41.ax1x.com/2026/10/23/pnDKnsI.png" alt="pnDKnsI.png" height="200px" border="0" /></p>
 
 <h1 align="center"> DTMF Generator </h1>
 
@@ -15,7 +15,7 @@ Kotlin + Jetpack Compose (Material 3 / Material You) 的 DTMF 音频生成实现
 
 *该图标非AI生成，使用Krita绘制。
 
-![pnDpnrd.png](https://s41.ax1x.com/2026/10/23/pnDpnrd.png)
+![pnDIJyT.png](https://s41.ax1x.com/2026/10/25/pnDIJyT.png)
 
 ## 构建
 
