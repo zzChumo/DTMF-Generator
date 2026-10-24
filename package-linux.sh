@@ -58,22 +58,45 @@ DESKTOP
 
 cat > "$DIST/install-desktop-entry.sh" <<'INSTALL'
 #!/bin/sh
-# 把菜单项和图标安装到当前用户（无需 root）
+# 安装菜单项、图标，并在 ~/.local/bin 里建一个可用的命令软链接（无需 root）
 set -e
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 APPS="$HOME/.local/share/applications"
 ICONS="$HOME/.local/share/icons/hicolor"
-mkdir -p "$APPS" "$ICONS/512x512/apps" "$ICONS/256x256/apps" "$ICONS/128x128/apps"
+BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"
+
+mkdir -p "$APPS" "$ICONS/512x512/apps" "$ICONS/256x256/apps" "$ICONS/128x128/apps" "$BIN"
 cp "$DIR/share/icons/hicolor/512x512/apps/dtmf-generator.png" "$ICONS/512x512/apps/"
 cp "$DIR/share/icons/hicolor/256x256/apps/dtmf-generator.png" "$ICONS/256x256/apps/"
 cp "$DIR/share/icons/hicolor/128x128/apps/dtmf-generator.png" "$ICONS/128x128/apps/"
+
 sed "s|@EXEC@|$DIR/bin/dtmf-generator|" \
   "$DIR/share/applications/dtmf-generator.desktop.in" > "$APPS/dtmf-generator.desktop"
 chmod 644 "$APPS/dtmf-generator.desktop"
+
+# 终端命令：~/.local/bin/dtmf-generator -> 包内启动脚本
+ln -sf "$DIR/bin/dtmf-generator" "$BIN/dtmf-generator"
+
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" || true
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$ICONS" || true
+
 echo "已安装菜单项：$APPS/dtmf-generator.desktop"
-echo "（卸载：删除该文件及 $ICONS 下对应图标即可）"
+echo "已建立命令：$BIN/dtmf-generator"
+
+case ":$PATH:" in
+  *":$BIN:"*) echo "终端可直接运行：dtmf-generator" ;;
+  *)
+    echo ""
+    echo "注意：$BIN 不在当前 PATH 里（所以直接敲 dtmf-generator 会提示找不到命令）。"
+    echo "选一个方式即可："
+    echo "  1) 用完整路径：$BIN/dtmf-generator"
+    echo "  2) 把这一行加进 ~/.bashrc / ~/.zshrc 后重开终端："
+    echo "       export PATH=\"\$PATH:$BIN\""
+    echo "  3) 或者用应用菜单里的 DTMF Generator 图标启动"
+    ;;
+esac
+echo ""
+echo "（卸载：删除 $APPS/dtmf-generator.desktop、$BIN/dtmf-generator 及 $ICONS 下图标即可）"
 INSTALL
 chmod 755 "$DIST/install-desktop-entry.sh"
 
