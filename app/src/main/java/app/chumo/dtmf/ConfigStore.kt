@@ -22,6 +22,31 @@ object ConfigStore {
 
     private fun file(context: Context): File = File(context.filesDir, FILE_NAME)
 
+    /** 严格解析：必须是 JSON 数组，且每项含 id(数字)/number(字符串)/time(数字)/gap(数字)，否则返回 null */
+    fun parse(text: String): List<DtmfConfig>? {
+        return runCatching {
+            val arr = JSONArray(text)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    require(o.has("id") && o.has("number") && o.has("time") && o.has("gap")) { "缺少字段" }
+                    require(o.get("id") is Number) { "id 类型错误" }
+                    require(o.get("number") is String) { "number 类型错误" }
+                    require(o.get("time") is Number) { "time 类型错误" }
+                    require(o.get("gap") is Number) { "gap 类型错误" }
+                    add(
+                        DtmfConfig(
+                            id = o.getInt("id"),
+                            number = o.getString("number"),
+                            time = o.getInt("time"),
+                            gap = o.getInt("gap")
+                        )
+                    )
+                }
+            }
+        }.getOrNull()
+    }
+
     fun load(context: Context): List<DtmfConfig> {
         val f = file(context)
         if (!f.exists()) return emptyList()

@@ -42,6 +42,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileUpload
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -347,6 +353,8 @@ fun DtmfApp(
     var selectedConfigId by remember { mutableStateOf(0) }
     var configExpanded by remember { mutableStateOf(false) }
     var showDeleteConfigDialog by remember { mutableStateOf(false) }
+    var showImportConfigDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) { configs = ConfigStore.load(context) }
 
     fun saveConfig() {
@@ -385,6 +393,34 @@ fun DtmfApp(
         scope.launch { snackbarHostState.showSnackbar("配置已删除") }
     }
 
+    fun importConfigFromUri(uri: android.net.Uri) {
+        runCatching {
+            // 取显示名（用于校验扩展名）
+            var name = ""
+            context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && c.moveToFirst()) name = c.getString(idx) ?: ""
+            }
+            require(name.lowercase(Locale.US).endsWith(".json")) { "扩展名必须是 .json" }
+            val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                ?: error("无法读取文件")
+            val parsed = ConfigStore.parse(text) ?: error("配置文件格式不合法")
+            ConfigStore.save(context, parsed)
+            configs = ConfigStore.load(context)
+            selectedConfigId = 0
+        }.onSuccess {
+            scope.launch { snackbarHostState.showSnackbar("配置已导入，共 ${configs.size} 条") }
+        }.onFailure {
+            scope.launch { snackbarHostState.showSnackbar("导入失败：" + (it.message ?: "未知错误")) }
+        }
+    }
+
+    val importConfigLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) importConfigFromUri(uri)
+    }
+
     fun exportConfig() {
         // 导出到与音频相同的目录：/storage/emulated/0/DTMF/
         val dir = File(Environment.getExternalStorageDirectory(), "DTMF").apply { mkdirs() }
@@ -405,6 +441,9 @@ fun DtmfApp(
             TopAppBar(
                 title = { Text("DTMF Generator") },
                 actions = {
+                    IconButton(onClick = { showImportConfigDialog = true }) {
+                        Icon(Icons.Filled.FileDownload, contentDescription = "导入配置")
+                    }
                     IconButton(onClick = { exportConfig() }) {
                         Icon(Icons.Filled.FileUpload, contentDescription = "导出配置")
                     }
@@ -470,6 +509,44 @@ fun DtmfApp(
                 onToneStop = onToneStop
             )
         }
+    }
+
+    if (showImportConfigDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportConfigDialog = false },
+            title = {
+                Text(
+                    text = "导入配置",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
+            text = {
+                Column {
+                    Text("请选择文件名为config开头、拓展名为.json的配置文件。")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("导入配置会覆盖所有已保存的配置，请先确保您已经导出当前配置后再谨慎考虑导入。")
+                            }
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportConfigDialog = false }) {
+                    Text("取消")
+                }
+            },
+            confirmButton = {
+                FilledTonalButton(onClick = {
+                    showImportConfigDialog = false
+                    importConfigLauncher.launch(arrayOf("*/*"))
+                }) {
+                    Text("选择")
+                }
+            }
+        )
     }
 
     if (showDeleteConfigDialog) {
