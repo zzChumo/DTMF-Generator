@@ -79,6 +79,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -383,11 +384,29 @@ fun DtmfApp(
         scope.launch { snackbarHostState.showSnackbar("配置已删除") }
     }
 
+    fun exportConfig() {
+        // 导出到与音频相同的目录：/storage/emulated/0/DTMF/
+        val dir = File(Environment.getExternalStorageDirectory(), "DTMF").apply { mkdirs() }
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val dst = File(dir, "config_${stamp}.json")
+        val src = File(context.filesDir, "config.json")
+        runCatching {
+            if (src.exists()) src.copyTo(dst, overwrite = true) else dst.writeText("[]")
+        }.onSuccess {
+            scope.launch { snackbarHostState.showSnackbar("配置文件已导出至${dst.absolutePath}") }
+        }.onFailure {
+            scope.launch { snackbarHostState.showSnackbar("导出失败：${it.message}") }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("DTMF Generator") },
                 actions = {
+                    IconButton(onClick = { exportConfig() }) {
+                        FileUploadIcon()
+                    }
                     IconButton(onClick = { showAbout = true }) {
                         Icon(Icons.Filled.AccountCircle, contentDescription = "关于")
                     }
@@ -952,5 +971,22 @@ private fun DialpadIcon() {
             radius = radius,
             center = Offset(xStep * 2, yStep * 4)
         )
+    }
+}
+
+/** 上传/导出图标：向上箭头 + 底部托盘（Material FileUpload 形状） */
+@Composable
+private fun FileUploadIcon() {
+    val color = LocalContentColor.current
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val w = size.width
+        val h = size.height
+        val sw = w * 0.09f
+        // 向上箭头
+        drawLine(color, Offset(w * 0.5f, h * 0.80f), Offset(w * 0.5f, h * 0.22f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.28f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.72f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
+        // 底部托盘
+        drawLine(color, Offset(w * 0.18f, h * 0.84f), Offset(w * 0.82f, h * 0.84f), strokeWidth = sw, cap = StrokeCap.Round)
     }
 }
