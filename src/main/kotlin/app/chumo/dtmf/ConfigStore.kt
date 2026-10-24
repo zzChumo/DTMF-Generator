@@ -29,6 +29,28 @@ object ConfigStore {
     private val file: File
         get() = File(File(System.getProperty("user.home"), "DTMF"), "config.json")
 
+    /** 严格解析：必须是 [ {id,number,time,gap}, ... ]，否则返回 null（用于导入校验） */
+    fun parse(text: String): List<DtmfConfig>? {
+        val t = text.trim()
+        if (!t.startsWith("[") || !t.endsWith("]")) return null
+        return runCatching {
+            val regex = Regex(PATTERN)
+            val matches = regex.findAll(t).toList()
+            val leftover = regex.replace(t.removePrefix("[").removeSuffix("]"), "")
+                .replace(",", "")
+                .replace(Regex("\\s"), "")
+            if (leftover.isNotEmpty()) return null
+            matches.map { m ->
+                DtmfConfig(
+                    id = m.groupValues[1].toInt(),
+                    number = unescape(m.groupValues[2]),
+                    time = m.groupValues[3].toInt(),
+                    gap = m.groupValues[4].toInt()
+                )
+            }
+        }.getOrNull()
+    }
+
     fun load(): List<DtmfConfig> {
         val f = file
         if (!f.exists()) return emptyList()

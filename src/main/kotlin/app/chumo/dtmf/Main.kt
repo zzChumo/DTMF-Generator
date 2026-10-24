@@ -1,6 +1,7 @@
 package app.chumo.dtmf
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -250,6 +251,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
     var configs by remember { mutableStateOf(emptyList<DtmfConfig>()) }
     var selectedConfigId by remember { mutableStateOf(0) }
     var showDeleteConfigDialog by remember { mutableStateOf(false) }
+    var showImportConfigDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { configs = ConfigStore.load() }
 
     fun saveConfig() {
@@ -258,6 +260,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
         configs = updated
         ConfigStore.save(updated)
         selectedConfigId = newId
+        scope.launch { snackbar.showSnackbar("配置已保存") }
     }
 
     fun selectConfig(id: Int) {
@@ -283,6 +286,30 @@ internal fun DtmfApp(initialPage: Int = 0) {
         ConfigStore.save(updated)
         selectedConfigId = 0
         scope.launch { snackbar.showSnackbar("配置已删除") }
+    }
+
+    fun importConfigFromFile(file: File) {
+        runCatching {
+            require(file.name.lowercase(Locale.US).endsWith(".json")) { "扩展名必须是 .json" }
+            require(file.isFile) { "无法读取文件" }
+            val text = file.readText()
+            val parsed = ConfigStore.parse(text) ?: error("配置文件格式不合法")
+            ConfigStore.save(parsed)
+            configs = ConfigStore.load()
+            selectedConfigId = 0
+        }.onSuccess {
+            scope.launch { snackbar.showSnackbar("配置已导入，共 ${configs.size} 条") }
+        }.onFailure {
+            scope.launch { snackbar.showSnackbar("导入失败：" + (it.message ?: "未知错误")) }
+        }
+    }
+
+    fun pickConfigFile() {
+        val dialog = java.awt.FileDialog(null as java.awt.Frame?, "导入配置", java.awt.FileDialog.LOAD)
+        dialog.isVisible = true
+        val fileName = dialog.file
+        val dir = dialog.directory
+        if (fileName != null) importConfigFromFile(File(dir ?: "", fileName))
     }
 
     fun exportConfig() {
@@ -325,6 +352,9 @@ internal fun DtmfApp(initialPage: Int = 0) {
             TopAppBar(
                 title = { Text("DTMF Generator", fontWeight = FontWeight.SemiBold) },
                 actions = {
+                    IconButton(onClick = { showImportConfigDialog = true }) {
+                        Icon(Icons.Filled.FileDownload, contentDescription = "导入配置")
+                    }
                     IconButton(onClick = { exportConfig() }) {
                         Icon(Icons.Filled.FileUpload, contentDescription = "导出配置")
                     }
@@ -472,6 +502,32 @@ internal fun DtmfApp(initialPage: Int = 0) {
         }
     }
 
+    }
+
+    if (showImportConfigDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportConfigDialog = false },
+            title = { Text("导入配置", style = MaterialTheme.typography.headlineSmall) },
+            text = {
+                Column {
+                    Text("请选择文件名为config开头、拓展名为.json的配置文件。")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "导入配置会覆盖所有已保存的配置，请先确保您已经导出当前配置后再谨慎考虑导入。",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportConfigDialog = false }) { Text("取消") }
+            },
+            confirmButton = {
+                FilledTonalButton(onClick = {
+                    showImportConfigDialog = false
+                    pickConfigFile()
+                }) { Text("选择") }
+            }
+        )
     }
 
     if (showDeleteConfigDialog) {
@@ -669,8 +725,20 @@ private fun DialpadPage(
         listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
         listOf('*' to "", '0' to "+", '#' to "")
     )
-    Column(
+    val requiredHeight = 78.dp * 4 + 14.dp * 3
+    BoxWithConstraints(
         modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (maxHeight < requiredHeight) {
+            Text(
+                "屏幕高度过低 拨号盘不可用",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+    Column(
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -684,6 +752,8 @@ private fun DialpadPage(
                 }
             }
             if (rowIdx != rows.lastIndex) Spacer(Modifier.height(14.dp))
+        }
+    }
         }
     }
 }
@@ -734,7 +804,7 @@ private fun DialKey(
 
 fun main(args: Array<String>) {
     if (args.contains("--version")) {
-        println("DTMF Generator 1.0-Pre_Release (103) - Linux amd64 (Compose Multiplatform + Material3)")
+        println("DTMF Generator 1.0-Release (104) - Linux amd64 (Compose Multiplatform + Material3)")
         return
     }
     if (args.contains("--help")) {
