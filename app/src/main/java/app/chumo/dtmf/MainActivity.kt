@@ -25,8 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -89,7 +87,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -936,56 +933,30 @@ private fun DialpadPage(
         listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
         listOf('*' to "", '0' to "+", '#' to "")
     )
-    // 拨号盘的名义尺寸（竖屏标准布局）；页面放不下时整体等比缩小
-    val baseKeyHeight = 78.dp
-    val baseGapV = 14.dp
-    val baseGapH = 12.dp
-    val baseKeyWidth = 98.dp
-    val naturalWidth = baseKeyWidth * 3 + baseGapH * 2
-    val naturalHeight = baseKeyHeight * 4 + baseGapV * 3
-
-    BoxWithConstraints(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
             .padding(horizontal = 20.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val availableWidth = maxWidth
-        val availableHeight = maxHeight
-        val scale = minOf(
-            1f,
-            availableHeight / naturalHeight,
-            availableWidth / naturalWidth
-        )
-        Column(
-            modifier = Modifier
-                .width(naturalWidth)
-                .height(naturalHeight)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            rows.forEachIndexed { index, row ->
-                Row(
-                    modifier = Modifier.width(naturalWidth),
-                    horizontalArrangement = Arrangement.spacedBy(baseGapH)
-                ) {
-                    row.forEach { (key, sub) ->
-                        DialKey(
-                            key = key,
-                            sub = sub,
-                            modifier = Modifier.weight(1f).height(baseKeyHeight),
-                            onToneStart = onToneStart,
-                            onToneStop = onToneStop
-                        )
-                    }
+        rows.forEachIndexed { index, row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                row.forEach { (key, sub) ->
+                    DialKey(
+                        key = key,
+                        sub = sub,
+                        modifier = Modifier.weight(1f),
+                        onToneStart = onToneStart,
+                        onToneStop = onToneStop
+                    )
                 }
-                if (index != rows.lastIndex) Spacer(Modifier.height(baseGapV))
             }
+            if (index != rows.lastIndex) Spacer(Modifier.height(14.dp))
         }
     }
 }
