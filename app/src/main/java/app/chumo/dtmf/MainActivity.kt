@@ -41,6 +41,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -405,7 +406,7 @@ fun DtmfApp(
                 title = { Text("DTMF Generator") },
                 actions = {
                     IconButton(onClick = { exportConfig() }) {
-                        FileUploadIcon()
+                        Icon(Icons.Filled.FileUpload, contentDescription = "导出配置")
                     }
                     IconButton(onClick = { showAbout = true }) {
                         Icon(Icons.Filled.AccountCircle, contentDescription = "关于")
@@ -974,19 +975,3 @@ private fun DialpadIcon() {
     }
 }
 
-/** 上传/导出图标：向上箭头 + 底部托盘（Material FileUpload 形状） */
-@Composable
-private fun FileUploadIcon() {
-    val color = LocalContentColor.current
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val w = size.width
-        val h = size.height
-        val sw = w * 0.09f
-        // 向上箭头
-        drawLine(color, Offset(w * 0.5f, h * 0.80f), Offset(w * 0.5f, h * 0.22f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(color, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.28f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(color, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.72f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
-        // 底部托盘
-        drawLine(color, Offset(w * 0.18f, h * 0.84f), Offset(w * 0.82f, h * 0.84f), strokeWidth = sw, cap = StrokeCap.Round)
-    }
-}
