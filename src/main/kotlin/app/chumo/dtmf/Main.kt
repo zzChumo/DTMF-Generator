@@ -358,7 +358,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
                     label = { Text("号码") },
                     placeholder = { Text("数字、*、#") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(12.dp))
                 SelectField(
