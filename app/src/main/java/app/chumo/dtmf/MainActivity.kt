@@ -38,6 +38,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -65,6 +66,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -334,6 +336,50 @@ fun DtmfApp(
     var showAbout by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // —— 配置（config.json）——
+    var configs by remember { mutableStateOf(emptyList<DtmfConfig>()) }
+    var selectedConfigId by remember { mutableStateOf(0) }
+    var configExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfigDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { configs = ConfigStore.load(context) }
+
+    fun saveConfig() {
+        val newId = (configs.maxOfOrNull { it.id } ?: 0) + 1
+        val newConfig = DtmfConfig(id = newId, number = seq, time = toneMs, gap = gapMs)
+        val updated = listOf(newConfig) + configs
+        configs = updated
+        ConfigStore.save(context, updated)
+        selectedConfigId = newId
+        configExpanded = false
+    }
+
+    fun selectConfig(id: Int) {
+        selectedConfigId = id
+        configExpanded = false
+        if (id == 0) {
+            seq = ""
+            toneMs = 100
+            gapMs = 20
+        } else {
+            configs.firstOrNull { it.id == id }?.let {
+                seq = it.number
+                toneMs = it.time
+                gapMs = it.gap
+            }
+        }
+    }
+
+    fun deleteSelectedConfig() {
+        val id = selectedConfigId
+        if (id == 0) return
+        val updated = configs.filterNot { it.id == id }
+        configs = updated
+        ConfigStore.save(context, updated)
+        selectedConfigId = 0
+        scope.launch { snackbarHostState.showSnackbar("配置已删除") }
+    }
 
     Scaffold(
         topBar = {
@@ -386,6 +432,13 @@ fun DtmfApp(
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     }
                 },
+                configs = configs,
+                selectedConfigId = selectedConfigId,
+                configExpanded = configExpanded,
+                onConfigExpandedChange = { configExpanded = it },
+                onConfigSelected = { id -> selectConfig(id); focusManager.clearFocus() },
+                onSaveConfig = { saveConfig(); focusManager.clearFocus() },
+                onRequestDeleteConfig = { showDeleteConfigDialog = true },
                 focusManager = focusManager
             )
         } else {
@@ -395,6 +448,32 @@ fun DtmfApp(
                 onToneStop = onToneStop
             )
         }
+    }
+
+    if (showDeleteConfigDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfigDialog = false },
+            title = {
+                Text(
+                    text = "删除配置",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
+            text = { Text("确定要删除该配置吗？") },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfigDialog = false }) {
+                    Text("取消")
+                }
+            },
+            confirmButton = {
+                FilledTonalButton(onClick = {
+                    deleteSelectedConfig()
+                    showDeleteConfigDialog = false
+                }) {
+                    Text("删除")
+                }
+            }
+        )
     }
 
     if (showAbout) {
@@ -451,6 +530,13 @@ private fun HomePage(
     onGapSelected: (Int) -> Unit,
     onPlay: () -> Unit,
     onSave: () -> Unit,
+    configs: List<DtmfConfig>,
+    selectedConfigId: Int,
+    configExpanded: Boolean,
+    onConfigExpandedChange: (Boolean) -> Unit,
+    onConfigSelected: (Int) -> Unit,
+    onSaveConfig: () -> Unit,
+    onRequestDeleteConfig: () -> Unit,
     focusManager: androidx.compose.ui.focus.FocusManager
 ) {
     var showCustomToneDialog by remember { mutableStateOf(false) }
@@ -469,6 +555,45 @@ private fun HomePage(
             ) { focusManager.clearFocus() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // —— 配置 Select ——
+        val selectedConfig = configs.firstOrNull { it.id == selectedConfigId }
+        ExposedDropdownMenuBox(
+            expanded = configExpanded,
+            onExpandedChange = onConfigExpandedChange
+        ) {
+            OutlinedTextField(
+                value = if (selectedConfigId == 0) "默认" else (selectedConfig?.label() ?: "默认"),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("配置") },
+                trailingIcon = {
+                    if (selectedConfigId != 0) {
+                        IconButton(onClick = onRequestDeleteConfig) {
+                            Icon(Icons.Filled.Delete, contentDescription = "删除配置")
+                        }
+                    } else {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = configExpanded)
+                    }
+                },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = configExpanded,
+                onDismissRequest = { onConfigExpandedChange(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("默认") },
+                    onClick = { onConfigSelected(0); focusManager.clearFocus() }
+                )
+                configs.forEach { cfg ->
+                    DropdownMenuItem(
+                        text = { Text(cfg.label()) },
+                        onClick = { onConfigSelected(cfg.id); focusManager.clearFocus() }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = seq,
             onValueChange = onSeqChange,
@@ -587,8 +712,7 @@ private fun HomePage(
                 Text("保存音频")
             }
             FilledTonalButton(
-                onClick = { },
-                enabled = false,
+                onClick = onSaveConfig,
                 modifier = Modifier.weight(1f)
             ) {
                 Text("保存配置")
