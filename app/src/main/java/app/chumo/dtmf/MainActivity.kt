@@ -575,12 +575,24 @@ private fun HomePage(
             Text("播放DTMF")
         }
         Spacer(Modifier.height(12.dp))
-        Button(
-            onClick = onSave,
-            enabled = seq.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
         ) {
-            Text("保存")
+            FilledTonalButton(
+                onClick = onSave,
+                enabled = seq.isNotEmpty(),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("保存音频")
+            }
+            FilledTonalButton(
+                onClick = { },
+                enabled = false,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("保存配置")
+            }
         }
         Spacer(Modifier.weight(1f))
         Text(

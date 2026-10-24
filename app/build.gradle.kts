@@ -22,8 +22,8 @@ android {
         applicationId = "app.chumo.dtmf"
         minSdk = 31
         targetSdk = 36
-        versionCode = 100
-        versionName = "1.0-Alpha"
+        versionCode = 101
+        versionName = "1.0-Alpha-1"
     }
 
     signingConfigs {
