@@ -1,7 +1,7 @@
 #!/bin/sh
 # 打包 DTMF Generator Linux amd64 桌面版（内置 JRE，含图标与菜单项模板）
 set -e
-VER="1.0-Alpha"
+VER="1.0-Alpha-2"
 NAME="DTMF-Generator-${VER}-linux-amd64"
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 DIST="$ROOT/dist/$NAME"
@@ -21,7 +21,7 @@ cp -r /opt/jdk-17.0.20.1+1-jre "$DIST/bin/runtime"
 
 cat > "$DIST/bin/dtmf-generator" <<'LAUNCH'
 #!/bin/sh
-# DTMF Generator 1.0-Alpha (100) — Linux amd64
+# DTMF Generator 1.0-Alpha-2 (102) — Linux amd64
 # Compose Multiplatform + Material 3；lib/ 与 runtime/ 与本脚本同级
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 JAVA="$DIR/runtime/bin/java"
@@ -40,9 +40,9 @@ exec "$JAVA" -Xmx512m \
 LAUNCH
 chmod 755 "$DIST/bin/dtmf-generator"
 
-cp /home/dsh/test/dtmf_icon_circle_1024.png "$DIST/share/icons/hicolor/512x512/apps/dtmf-generator.png"
-cp /tmp/icongen/out_icon_256.png "$DIST/share/icons/hicolor/256x256/apps/dtmf-generator.png"
-cp /tmp/icongen/out_icon_128.png "$DIST/share/icons/hicolor/128x128/apps/dtmf-generator.png"
+cp "$ROOT/icons/dtmf-generator-512.png" "$DIST/share/icons/hicolor/512x512/apps/dtmf-generator.png"
+cp "$ROOT/icons/dtmf-generator-256.png" "$DIST/share/icons/hicolor/256x256/apps/dtmf-generator.png"
+cp "$ROOT/icons/dtmf-generator-128.png" "$DIST/share/icons/hicolor/128x128/apps/dtmf-generator.png"
 
 cat > "$DIST/share/applications/dtmf-generator.desktop.in" <<'DESKTOP'
 [Desktop Entry]
@@ -77,11 +77,11 @@ echo "（卸载：删除该文件及 $ICONS 下对应图标即可）"
 INSTALL
 chmod 755 "$DIST/install-desktop-entry.sh"
 
-printf '1.0-Alpha (100)\n' > "$DIST/VERSION"
+printf '1.0-Alpha-2 (102)\n' > "$DIST/VERSION"
 cat > "$DIST/README.txt" <<'README'
-DTMF Generator 1.0-Alpha (100) — Linux amd64 桌面版
+DTMF Generator 1.0-Alpha-2 (102) — Linux amd64 桌面版
 ==================================================
-版本号与 Android 版同步：1.0-Alpha（versionCode 100）
+版本号与 Android 版同步：1.0-Alpha-2（versionCode 102）
 
 【一句话运行】
   ./bin/dtmf-generator
@@ -101,7 +101,7 @@ DTMF Generator 1.0-Alpha (100) — Linux amd64 桌面版
 
 自检（排错用）
   ./bin/dtmf-generator --version
-  应输出：DTMF Generator 1.0-Alpha (100) - Linux amd64 (...)
+  应输出：DTMF Generator 1.0-Alpha-2 (102) - Linux amd64 (...)
 
 界面：Compose Multiplatform + Material 3（与 Android 版同一套组件）
 Wayland 桌面经 XWayland 运行；保存目录 ~/DTMF/
