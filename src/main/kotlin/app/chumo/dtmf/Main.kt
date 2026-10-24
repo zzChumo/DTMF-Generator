@@ -283,6 +283,21 @@ internal fun DtmfApp(initialPage: Int = 0) {
         scope.launch { snackbar.showSnackbar("配置已删除") }
     }
 
+    fun exportConfig() {
+        // 与音频相同的目录：~/DTMF/
+        val dir = File(System.getProperty("user.home"), "DTMF").apply { mkdirs() }
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val dst = File(dir, "config_${stamp}.json")
+        val src = File(dir, "config.json")
+        runCatching {
+            if (src.exists()) src.copyTo(dst, overwrite = true) else dst.writeText("[]")
+        }.onSuccess {
+            scope.launch { snackbar.showSnackbar("配置文件已导出至${dst.absolutePath}") }
+        }.onFailure {
+            scope.launch { snackbar.showSnackbar("导出失败：${it.message}") }
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -308,6 +323,9 @@ internal fun DtmfApp(initialPage: Int = 0) {
             TopAppBar(
                 title = { Text("DTMF Generator", fontWeight = FontWeight.SemiBold) },
                 actions = {
+                    IconButton(onClick = { exportConfig() }) {
+                        IconFileUpload()
+                    }
                     IconButton(onClick = { showAbout = true }) {
                         IconPerson()
                     }
@@ -714,7 +732,7 @@ private fun DialKey(
 
 fun main(args: Array<String>) {
     if (args.contains("--version")) {
-        println("DTMF Generator 1.0-Alpha-2 (102) - Linux amd64 (Compose Multiplatform + Material3)")
+        println("DTMF Generator 1.0-Pre_Release (103) - Linux amd64 (Compose Multiplatform + Material3)")
         return
     }
     if (args.contains("--help")) {
@@ -737,5 +755,20 @@ private fun runApp() = application {
         MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme) {
             DtmfApp()
         }
+    }
+}
+
+/** 上传/导出图标：向上箭头 + 底部托盘（Material FileUpload 形状） */
+@Composable
+private fun IconFileUpload() {
+    val tint = LocalContentColor.current
+    Canvas(Modifier.size(24.dp)) {
+        val w = size.width
+        val h = size.height
+        val sw = w * 0.09f
+        drawLine(tint, Offset(w * 0.5f, h * 0.80f), Offset(w * 0.5f, h * 0.22f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(tint, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.28f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(tint, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.72f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(tint, Offset(w * 0.18f, h * 0.84f), Offset(w * 0.82f, h * 0.84f), strokeWidth = sw, cap = StrokeCap.Round)
     }
 }
