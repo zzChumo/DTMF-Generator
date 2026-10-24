@@ -63,7 +63,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.ripple
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -668,7 +668,7 @@ private fun HomePage(
             expanded = configExpanded,
             onExpandedChange = onConfigExpandedChange
         ) {
-            OutlinedTextField(
+            TextField(
                 value = if (selectedConfigId == 0) "默认" else (selectedConfig?.label() ?: "默认"),
                 onValueChange = {},
                 readOnly = true,
@@ -700,8 +700,8 @@ private fun HomePage(
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        Spacer(Modifier.height(16.dp))
+        TextField(
             value = seq,
             onValueChange = onSeqChange,
             label = { Text("号码") },
@@ -714,12 +714,12 @@ private fun HomePage(
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         ExposedDropdownMenuBox(
             expanded = toneExpanded,
             onExpandedChange = onToneExpandedChange
         ) {
-            OutlinedTextField(
+            TextField(
                 value = "${toneMs}ms",
                 onValueChange = {},
                 readOnly = true,
@@ -752,12 +752,12 @@ private fun HomePage(
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         ExposedDropdownMenuBox(
             expanded = gapExpanded,
             onExpandedChange = onGapExpandedChange
         ) {
-            OutlinedTextField(
+            TextField(
                 value = "${gapMs}ms",
                 onValueChange = {},
                 readOnly = true,
@@ -851,7 +851,7 @@ private fun HomePage(
                 )
             },
             text = {
-                OutlinedTextField(
+                TextField(
                     value = customToneText,
                     onValueChange = { input ->
                         customToneText = input.filter { c -> c.isDigit() }.take(5)
@@ -891,7 +891,7 @@ private fun HomePage(
                 )
             },
             text = {
-                OutlinedTextField(
+                TextField(
                     value = customGapText,
                     onValueChange = { input ->
                         customGapText = input.filter { c -> c.isDigit() }.take(5)
