@@ -1,7 +1,7 @@
 #!/bin/sh
 # 打包 DTMF Generator Linux amd64 桌面版（内置 JRE，含图标与菜单项模板）
 set -e
-VER="1.0-Alpha-2"
+VER="1.0-Release"
 NAME="DTMF-Generator-${VER}-linux-amd64"
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 DIST="$ROOT/dist/$NAME"
@@ -21,7 +21,7 @@ cp -r /opt/jdk-17.0.20.1+1-jre "$DIST/bin/runtime"
 
 cat > "$DIST/bin/dtmf-generator" <<'LAUNCH'
 #!/bin/sh
-# DTMF Generator 1.0-Alpha-2 (102) — Linux amd64
+# DTMF Generator 1.0-Release (104) — Linux amd64
 # Compose Multiplatform + Material 3；lib/ 与 runtime/ 与本脚本同级
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 JAVA="$DIR/runtime/bin/java"
@@ -117,11 +117,11 @@ echo "（卸载：删除 $APPS/dtmf-generator.desktop、$BIN/dtmf-generator 及 
 INSTALL
 chmod 755 "$DIST/install-desktop-entry.sh"
 
-printf '1.0-Alpha-2 (102)\n' > "$DIST/VERSION"
+printf '1.0-Release (104)\n' > "$DIST/VERSION"
 cat > "$DIST/README.txt" <<'README'
-DTMF Generator 1.0-Alpha-2 (102) — Linux amd64 桌面版
+DTMF Generator 1.0-Release (104) — Linux amd64 桌面版
 ==================================================
-版本号与 Android 版同步：1.0-Alpha-2（versionCode 102）
+版本号与 Android 版同步：1.0-Release（versionCode 104）
 
 【一句话运行】
   ./bin/dtmf-generator
@@ -141,7 +141,7 @@ DTMF Generator 1.0-Alpha-2 (102) — Linux amd64 桌面版
 
 自检（排错用）
   ./bin/dtmf-generator --version
-  应输出：DTMF Generator 1.0-Alpha-2 (102) - Linux amd64 (...)
+  应输出：DTMF Generator 1.0-Release (104) - Linux amd64 (...)
 
 界面：Compose Multiplatform + Material 3（与 Android 版同一套组件）
 Wayland 桌面经 XWayland 运行；保存目录 ~/DTMF/
