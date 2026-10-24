@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,6 +48,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
@@ -933,30 +935,51 @@ private fun DialpadPage(
         listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
         listOf('*' to "", '0' to "+", '#' to "")
     )
-    Column(
+    // 拨号盘本身所需高度：4 行按键 + 3 个行间距
+    val keyHeight = 78.dp
+    val rowGap = 14.dp
+    val requiredHeight = keyHeight * 4 + rowGap * 3
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
             .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        rows.forEachIndexed { index, row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+        if (maxHeight < requiredHeight) {
+            // 页面高度不足：不显示拨号盘，提示不可用
+            Text(
+                text = "屏幕高度过低 拨号盘不可用",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                row.forEach { (key, sub) ->
-                    DialKey(
-                        key = key,
-                        sub = sub,
-                        modifier = Modifier.weight(1f),
-                        onToneStart = onToneStart,
-                        onToneStop = onToneStop
-                    )
+                rows.forEachIndexed { index, row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        row.forEach { (key, sub) ->
+                            DialKey(
+                                key = key,
+                                sub = sub,
+                                modifier = Modifier.weight(1f),
+                                onToneStart = onToneStart,
+                                onToneStop = onToneStop
+                            )
+                        }
+                    }
+                    if (index != rows.lastIndex) Spacer(Modifier.height(rowGap))
                 }
             }
-            if (index != rows.lastIndex) Spacer(Modifier.height(14.dp))
         }
     }
 }
