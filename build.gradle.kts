@@ -17,6 +17,7 @@ dependencies {
     // 关键：显式使用 Linux x86_64 桌面构件（含 skiko-linux-x64），在 aarch64 上也能交叉打包
     implementation("org.jetbrains.compose.desktop:desktop-jvm-linux-x64:1.6.11")
     implementation(compose.material3)
+    implementation(compose.materialIconsExtended)
 }
 
 kotlin {

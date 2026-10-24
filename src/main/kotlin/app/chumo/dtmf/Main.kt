@@ -1,5 +1,7 @@
 package app.chumo.dtmf
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -324,7 +326,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
                 title = { Text("DTMF Generator", fontWeight = FontWeight.SemiBold) },
                 actions = {
                     IconButton(onClick = { exportConfig() }) {
-                        IconFileUpload()
+                        Icon(Icons.Filled.FileUpload, contentDescription = "导出配置")
                     }
                     IconButton(onClick = { showAbout = true }) {
                         IconPerson()
@@ -758,17 +760,3 @@ private fun runApp() = application {
     }
 }
 
-/** 上传/导出图标：向上箭头 + 底部托盘（Material FileUpload 形状） */
-@Composable
-private fun IconFileUpload() {
-    val tint = LocalContentColor.current
-    Canvas(Modifier.size(24.dp)) {
-        val w = size.width
-        val h = size.height
-        val sw = w * 0.09f
-        drawLine(tint, Offset(w * 0.5f, h * 0.80f), Offset(w * 0.5f, h * 0.22f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(tint, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.28f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(tint, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.72f, h * 0.44f), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(tint, Offset(w * 0.18f, h * 0.84f), Offset(w * 0.82f, h * 0.84f), strokeWidth = sw, cap = StrokeCap.Round)
-    }
-}
