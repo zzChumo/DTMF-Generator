@@ -367,6 +367,7 @@ fun DtmfApp(
         ConfigStore.save(context, updated)
         selectedConfigId = newId
         configExpanded = false
+        scope.launch { snackbarHostState.showSnackbar("配置已保存") }
     }
 
     fun selectConfig(id: Int) {
