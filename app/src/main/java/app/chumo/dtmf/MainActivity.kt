@@ -930,15 +930,16 @@ private fun DialpadPage(
     onToneStop: (Char) -> Unit
 ) {
     val rows = listOf(
+        listOf('A' to "", 'B' to "", 'C' to ""),
         listOf('1' to "", '2' to "ABC", '3' to "DEF"),
         listOf('4' to "GHI", '5' to "JKL", '6' to "MNO"),
         listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
         listOf('*' to "", '0' to "+", '#' to "")
     )
-    // 拨号盘本身所需高度：4 行按键 + 3 个行间距
+    // 拨号盘本身所需高度：6 行按键（ABC 行 + 1-9 三行 + */0/# 行 + D 行） + 5 个行间距
     val keyHeight = 78.dp
     val rowGap = 14.dp
-    val requiredHeight = keyHeight * 4 + rowGap * 3
+    val requiredHeight = keyHeight * 6 + rowGap * 5
 
     BoxWithConstraints(
         modifier = Modifier
@@ -977,7 +978,22 @@ private fun DialpadPage(
                             )
                         }
                     }
-                    if (index != rows.lastIndex) Spacer(Modifier.height(rowGap))
+                    Spacer(Modifier.height(rowGap))
+                }
+                // D 键：单独一行，位于 0 的下方，宽度与普通按键一致
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Spacer(Modifier.weight(1f))
+                    DialKey(
+                        key = 'D',
+                        sub = "",
+                        modifier = Modifier.weight(1f),
+                        onToneStart = onToneStart,
+                        onToneStop = onToneStop
+                    )
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
