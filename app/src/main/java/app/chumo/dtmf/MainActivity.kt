@@ -929,17 +929,19 @@ private fun DialpadPage(
     onToneStart: (Char) -> Unit,
     onToneStop: (Char) -> Unit
 ) {
-    val rows = listOf(
-        listOf('A' to "", 'B' to "", 'C' to ""),
+    val abcRow = listOf('A' to "", 'B' to "", 'C' to "")
+    val standardRows = listOf(
         listOf('1' to "", '2' to "ABC", '3' to "DEF"),
         listOf('4' to "GHI", '5' to "JKL", '6' to "MNO"),
         listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
         listOf('*' to "", '0' to "+", '#' to "")
     )
-    // 拨号盘本身所需高度：6 行按键（ABC 行 + 1-9 三行 + */0/# 行 + D 行） + 5 个行间距
     val keyHeight = 78.dp
     val rowGap = 14.dp
-    val requiredHeight = keyHeight * 6 + rowGap * 5
+    // 不含 A/B/C/D 的标准拨号盘所需高度：4 行 + 3 个间距
+    val compactRequiredHeight = keyHeight * 4 + rowGap * 3
+    // 含 A/B/C(顶部一行) + D(底部一行) 的完整拨号盘所需高度：6 行 + 5 个间距
+    val fullRequiredHeight = keyHeight * 6 + rowGap * 5
 
     BoxWithConstraints(
         modifier = Modifier
@@ -948,57 +950,87 @@ private fun DialpadPage(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (maxHeight < requiredHeight) {
-            // 页面高度不足：不显示拨号盘，提示不可用
-            Text(
-                text = "屏幕高度过低 拨号盘不可用",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                rows.forEachIndexed { index, row ->
+        when {
+            // 1) 空间足够：完整拨号盘（含 A/B/C 与 D）
+            maxHeight >= fullRequiredHeight -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    DialpadRow(abcRow, onToneStart, onToneStop)
+                    Spacer(Modifier.height(rowGap))
+                    standardRows.forEach { row ->
+                        DialpadRow(row, onToneStart, onToneStop)
+                        Spacer(Modifier.height(rowGap))
+                    }
+                    // D 键：位于 0 下方，宽度与普通键一致
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        row.forEach { (key, sub) ->
-                            DialKey(
-                                key = key,
-                                sub = sub,
-                                modifier = Modifier.weight(1f),
-                                onToneStart = onToneStart,
-                                onToneStop = onToneStop
-                            )
-                        }
+                        Spacer(Modifier.weight(1f))
+                        DialKey(
+                            key = 'D',
+                            sub = "",
+                            modifier = Modifier.weight(1f),
+                            onToneStart = onToneStart,
+                            onToneStop = onToneStop
+                        )
+                        Spacer(Modifier.weight(1f))
                     }
-                    Spacer(Modifier.height(rowGap))
                 }
-                // D 键：单独一行，位于 0 的下方，宽度与普通按键一致
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            }
+            // 2) 不够完整但也够标准：隐藏 A/B/C/D，只显示标准 12 键
+            maxHeight >= compactRequiredHeight -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(Modifier.weight(1f))
-                    DialKey(
-                        key = 'D',
-                        sub = "",
-                        modifier = Modifier.weight(1f),
-                        onToneStart = onToneStart,
-                        onToneStop = onToneStop
-                    )
-                    Spacer(Modifier.weight(1f))
+                    standardRows.forEachIndexed { index, row ->
+                        DialpadRow(row, onToneStart, onToneStop)
+                        if (index != standardRows.lastIndex) Spacer(Modifier.height(rowGap))
+                    }
                 }
+            }
+            // 3) 连标准拨号盘都放不下：提示不可用
+            else -> {
+                Text(
+                    text = "屏幕高度过低 拨号盘不可用",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
 }
+
+/** 拨号盘一行按键（等宽分列） */
+@Composable
+private fun DialpadRow(
+    row: List<Pair<Char, String>>,
+    onToneStart: (Char) -> Unit,
+    onToneStop: (Char) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        row.forEach { (key, sub) ->
+            DialKey(
+                key = key,
+                sub = sub,
+                modifier = Modifier.weight(1f),
+                onToneStart = onToneStart,
+                onToneStop = onToneStop
+            )
+        }
+    }
+}
+
 
 /** 单个拨号键：胶囊形；按住持续发声，松手停止 */
 @Composable
