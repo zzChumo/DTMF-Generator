@@ -479,7 +479,7 @@ fun DtmfApp(
                 padding = padding,
                 seq = seq,
                 onSeqChange = { input ->
-                    seq = input.filter { c -> c.isDigit() || c == '#' || c == '*' }
+                    seq = input.uppercase().filter { c -> c.isDigit() || c == '#' || c == '*' || c in 'A'..'D' }.take(63)
                 },
                 toneMs = toneMs,
                 toneExpanded = toneExpanded,
@@ -711,7 +711,7 @@ private fun HomePage(
             placeholder = { Text("数字、*、#") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Phone,
+                keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
