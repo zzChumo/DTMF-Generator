@@ -117,7 +117,10 @@ import kotlin.math.sin
 class MainActivity : ComponentActivity() {
 
     // 拨号键盘的低延迟音频引擎：预创建 AudioTrack + 专用线程持续喂数据
-    @Volatile private var activeKey: Char? = null
+    /** 当前按下的按键集合（支持多键同时按下混音） */
+    private val activeKeys: MutableSet<Char> = java.util.Collections.synchronizedSet(LinkedHashSet<Char>())
+    /** 当前混音的按键快照（喂音线程读，避免锁开销） */
+    @Volatile private var mixedKeys: List<Char> = emptyList()
     @Volatile private var engineRunning = false
     private var toneTrack: AudioTrack? = null
     private var feederThread: Thread? = null
@@ -256,34 +259,27 @@ class MainActivity : ComponentActivity() {
         feederThread = Thread {
             val toneBlock = ShortArray(blockFrames)
             val silence = ShortArray(blockFrames)
-            var currentKey: Char? = null
-            var freq: Pair<Int, Int>? = null
             var phase = 0L
             while (engineRunning) {
-                val key = activeKey
-                if (key == null) {
-                    currentKey = null
-                    freq = null
+                // 每块数据重新取一次按键快照（≈5.8ms 粒度），支持多键同时发声
+                val freqs = mixedKeys.mapNotNull { Dtmf.frequencyOf(it) }
+                if (freqs.isEmpty()) {
                     phase = 0L
                     if (!writeBlock(track, silence)) break
                 } else {
-                    if (key != currentKey) {
-                        currentKey = key
-                        freq = Dtmf.frequencyOf(key)
-                        phase = 0L
-                    }
-                    val f = freq
-                    if (f == null) {
-                        if (!writeBlock(track, silence)) break
-                    } else {
-                        for (i in toneBlock.indices) {
-                            val t = (phase + i).toDouble() / Dtmf.SAMPLE_RATE
-                            val v = 0.5 * (sin(2.0 * PI * f.first * t) + sin(2.0 * PI * f.second * t))
-                            toneBlock[i] = (v * Short.MAX_VALUE).toInt().toShort()
+                    // 总幅度与单键时保持一致，避免多键混音削顶
+                    val amp = 0.5 / freqs.size
+                    for (i in toneBlock.indices) {
+                        val t = (phase + i).toDouble() / Dtmf.SAMPLE_RATE
+                        var v = 0.0
+                        for (f in freqs) {
+                            v += 0.5 * (sin(2.0 * PI * f.first * t) + sin(2.0 * PI * f.second * t))
                         }
-                        phase += toneBlock.size
-                        if (!writeBlock(track, toneBlock)) break
+                        toneBlock[i] = (v * amp * Short.MAX_VALUE * 2).toInt()
+                            .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                     }
+                    phase += toneBlock.size
+                    if (!writeBlock(track, toneBlock)) break
                 }
             }
         }.apply {
@@ -302,20 +298,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 按下：只切一个 volatile 标志位，下一块数据（≈5.8ms 内）就变成双音 */
+    /** 按下：把按键加入集合（支持多键同时按下，混音发声） */
     private fun startTone(key: Char) {
         ensureAudioEngine()
-        activeKey = key
+        activeKeys.add(key)
+        mixedKeys = activeKeys.toList()
     }
 
-    /** 松手：切回静音 */
-    private fun stopTone() {
-        activeKey = null
+    /** 松手：只移除这个按键，其它仍按住的键继续发声 */
+    private fun stopTone(key: Char) {
+        activeKeys.remove(key)
+        mixedKeys = activeKeys.toList()
     }
 
     private fun releaseAudioEngine() {
         engineRunning = false
-        activeKey = null
+        activeKeys.clear()
+        mixedKeys = emptyList()
         feederThread = null
         toneTrack?.let { t ->
             try {
@@ -336,7 +335,7 @@ fun DtmfApp(
     onPlay: (String, Int, Int) -> Unit,
     onSave: (String, Int, Int, (String) -> Unit) -> Unit,
     onToneStart: (Char) -> Unit,
-    onToneStop: () -> Unit
+    onToneStop: (Char) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     var selectedTab by remember { mutableStateOf(0) }
@@ -708,7 +707,7 @@ private fun HomePage(
             value = seq,
             onValueChange = onSeqChange,
             label = { Text("号码") },
-            placeholder = { Text("数字、*、#") },
+            placeholder = { Text("数字、*、#、ABCD") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
@@ -928,7 +927,7 @@ private fun HomePage(
 private fun DialpadPage(
     padding: PaddingValues,
     onToneStart: (Char) -> Unit,
-    onToneStop: () -> Unit
+    onToneStop: (Char) -> Unit
 ) {
     val rows = listOf(
         listOf('1' to "", '2' to "ABC", '3' to "DEF"),
@@ -992,7 +991,7 @@ private fun DialKey(
     sub: String,
     modifier: Modifier = Modifier,
     onToneStart: (Char) -> Unit,
-    onToneStop: () -> Unit
+    onToneStop: (Char) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -1019,7 +1018,7 @@ private fun DialKey(
                         } else {
                             interactionSource.emit(PressInteraction.Cancel(press))
                         }
-                        onToneStop()
+                        onToneStop(key)
                     }
                 )
             },
