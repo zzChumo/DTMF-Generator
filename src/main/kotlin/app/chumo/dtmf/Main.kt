@@ -66,7 +66,9 @@ private val FREQ: Map<Char, Pair<Int, Int>> = mapOf(
     '1' to (697 to 1209), '2' to (697 to 1336), '3' to (697 to 1477),
     '4' to (770 to 1209), '5' to (770 to 1336), '6' to (770 to 1477),
     '7' to (852 to 1209), '8' to (852 to 1336), '9' to (852 to 1477),
-    '*' to (941 to 1209), '0' to (941 to 1336), '#' to (941 to 1477)
+    '*' to (941 to 1209), '0' to (941 to 1336), '#' to (941 to 1477),
+    // A-D 控制符：第四列 1633Hz
+    'A' to (697 to 1633), 'B' to (770 to 1633), 'C' to (852 to 1633), 'D' to (941 to 1633)
 )
 
 private fun toneSamples(key: Char, count: Int, start: Int = 0): ShortArray {
@@ -143,27 +145,66 @@ private fun stopAudio() {
     currentLine = null
 }
 
-/** 按住持续发声 */
-private fun startHoldTone(key: Char) {
-    stopAudio()
-    thread(isDaemon = true) {
+// —— 按住发声：支持多键同时按下混音 ——
+private val heldKeys: MutableSet<Char> = java.util.Collections.synchronizedSet(LinkedHashSet())
+@Volatile private var mixedKeys: List<Char> = emptyList()
+@Volatile private var holdRunning = false
+private var holdThread: Thread? = null
+
+private fun ensureHoldEngine() {
+    if (holdThread != null) return
+    holdRunning = true
+    holdThread = thread(isDaemon = true) {
         try {
             val line = AudioSystem.getSourceDataLine(fmt)
-            currentLine = line
             line.open(fmt)
             line.start()
-            var pos = 0
+            var phase = 0L
             val block = 1024
-            while (currentLine === line) {
-                val buf = toneSamples(key, block, pos)
-                pos += block
+            while (holdRunning) {
+                val freqs = mixedKeys.mapNotNull { FREQ[it] }
                 val bb = ByteBuffer.allocate(block * 2).order(ByteOrder.LITTLE_ENDIAN)
-                for (s in buf) bb.putShort(s)
+                if (freqs.isEmpty()) {
+                    phase = 0L
+                    repeat(block) { bb.putShort(0) }
+                } else {
+                    val amp = 0.5 / freqs.size
+                    for (i in 0 until block) {
+                        val t = (phase + i).toDouble() / SAMPLE_RATE
+                        var v = 0.0
+                        for (f in freqs) {
+                            v += 0.5 * (sin(2.0 * PI * f.first * t) + sin(2.0 * PI * f.second * t))
+                        }
+                        val sample = (v * amp * 2.0 * 32000).toInt().coerceIn(-32768, 32767)
+                        bb.putShort(sample.toShort())
+                    }
+                    phase += block
+                }
                 line.write(bb.array(), 0, block * 2)
             }
+            line.stop()
+            line.close()
         } catch (_: Exception) {
         }
+        holdThread = null
     }
+}
+
+private fun startHoldTone(key: Char) {
+    ensureHoldEngine()
+    heldKeys.add(key)
+    mixedKeys = heldKeys.toList()
+}
+
+private fun stopHoldTone(key: Char) {
+    heldKeys.remove(key)
+    mixedKeys = heldKeys.toList()
+}
+
+private fun stopAllHold() {
+    heldKeys.clear()
+    mixedKeys = emptyList()
+    holdRunning = false
 }
 
 // ================= 主题 =================
@@ -368,13 +409,13 @@ internal fun DtmfApp(initialPage: Int = 0) {
             NavigationBar {
                 NavigationBarItem(
                     selected = page == 0,
-                    onClick = { page = 0 },
+                    onClick = { stopAllHold(); page = 0 },
                     icon = { IconHome(tint = LocalContentColor.current) },
                     label = { Text("主页") }
                 )
                 NavigationBarItem(
                     selected = page == 1,
-                    onClick = { page = 1 },
+                    onClick = { stopAllHold(); page = 1 },
                     icon = { IconDialpad(tint = LocalContentColor.current) },
                     label = { Text("拨号键盘") }
                 )
@@ -404,9 +445,12 @@ internal fun DtmfApp(initialPage: Int = 0) {
                 Spacer(Modifier.height(16.dp))
                 TextField(
                     value = number,
-                    onValueChange = { it.filter { c -> c.isDigit() || c == '#' || c == '*' }.take(63) },
+                    onValueChange = { input ->
+                        val filtered = input.uppercase().filter { c -> c.isDigit() || c == '#' || c == '*' || c in 'A'..'D' }
+                        number = filtered.take(63)
+                    },
                     label = { Text("号码") },
-                    placeholder = { Text("数字、*、#") },
+                    placeholder = { Text("数字、*、#、ABCD") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -497,7 +541,7 @@ internal fun DtmfApp(initialPage: Int = 0) {
             DialpadPage(
                 padding = padding,
                 onToneStart = { startHoldTone(it) },
-                onToneStop = { stopAudio() }
+                onToneStop = { stopHoldTone(it) }
             )
         }
     }
@@ -717,46 +761,101 @@ private fun CustomValueDialog(
 private fun DialpadPage(
     padding: PaddingValues,
     onToneStart: (Char) -> Unit,
-    onToneStop: () -> Unit
+    onToneStop: (Char) -> Unit
 ) {
-    val rows = listOf(
+    val abcRow = listOf('A' to "", 'B' to "", 'C' to "")
+    val standardRows = listOf(
         listOf('1' to "", '2' to "ABC", '3' to "DEF"),
         listOf('4' to "GHI", '5' to "JKL", '6' to "MNO"),
         listOf('7' to "PQRS", '8' to "TUV", '9' to "WXYZ"),
         listOf('*' to "", '0' to "+", '#' to "")
     )
-    val requiredHeight = 78.dp * 4 + 14.dp * 3
+    val keyHeight = 78.dp
+    val rowGap = 14.dp
+    val compactRequiredHeight = keyHeight * 4 + rowGap * 3
+    val fullRequiredHeight = keyHeight * 6 + rowGap * 5
+
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (maxHeight < requiredHeight) {
-            Text(
-                "屏幕高度过低 拨号盘不可用",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        rows.forEachIndexed { rowIdx, row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                row.forEach { (key, sub) ->
-                    DialKey(key = key, sub = sub, modifier = Modifier.weight(1f), onToneStart, onToneStop)
+        when {
+            // 1) 空间足够：完整拨号盘（含 A/B/C 与 D）
+            maxHeight >= fullRequiredHeight -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    DialpadRow(abcRow, onToneStart, onToneStop)
+                    Spacer(Modifier.height(rowGap))
+                    standardRows.forEach { row ->
+                        DialpadRow(row, onToneStart, onToneStop)
+                        Spacer(Modifier.height(rowGap))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Spacer(Modifier.weight(1f))
+                        DialKey(
+                            key = 'D',
+                            sub = "",
+                            modifier = Modifier.weight(1f),
+                            onToneStart = onToneStart,
+                            onToneStop = onToneStop
+                        )
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
-            if (rowIdx != rows.lastIndex) Spacer(Modifier.height(14.dp))
-        }
-    }
+            // 2) 不够完整但也够标准：隐藏 A/B/C/D
+            maxHeight >= compactRequiredHeight -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    standardRows.forEachIndexed { index, row ->
+                        DialpadRow(row, onToneStart, onToneStop)
+                        if (index != standardRows.lastIndex) Spacer(Modifier.height(rowGap))
+                    }
+                }
+            }
+            // 3) 连标准盘都放不下
+            else -> {
+                Text(
+                    "屏幕高度过低 拨号盘不可用",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
+
+@Composable
+private fun DialpadRow(
+    row: List<Pair<Char, String>>,
+    onToneStart: (Char) -> Unit,
+    onToneStop: (Char) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        row.forEach { (key, sub) ->
+            DialKey(
+                key = key,
+                sub = sub,
+                modifier = Modifier.weight(1f),
+                onToneStart = onToneStart,
+                onToneStop = onToneStop
+            )
+        }
+    }
+}
+
 
 @Composable
 private fun DialKey(
@@ -764,7 +863,7 @@ private fun DialKey(
     sub: String,
     modifier: Modifier = Modifier,
     onToneStart: (Char) -> Unit,
-    onToneStop: () -> Unit
+    onToneStop: (Char) -> Unit
 ) {
     Box(
         modifier = modifier
@@ -778,7 +877,7 @@ private fun DialKey(
                     try {
                         waitForUpOrCancellation()
                     } finally {
-                        onToneStop()
+                        onToneStop(key)
                     }
                 }
             },
@@ -804,7 +903,7 @@ private fun DialKey(
 
 fun main(args: Array<String>) {
     if (args.contains("--version")) {
-        println("DTMF Generator 1.0-Release (104) - Linux amd64 (Compose Multiplatform + Material3)")
+        println("DTMF Generator 1.1-Alpha-2 (112) - Linux amd64 (Compose Multiplatform + Material3)")
         return
     }
     if (args.contains("--help")) {
